@@ -4,7 +4,7 @@ from tkcalendar import DateEntry
 import sqlite3
 
 from db import init_db
-from employees import add_employee, get_employees, is_due
+from employees import add_employee, get_employees, run_promotions
 from letters import add_letter, get_letters
 
 init_db()
@@ -12,7 +12,7 @@ init_db()
 # ================= WINDOW =================
 root = tk.Tk()
 root.title("نظام شؤون الموظفين")
-root.geometry("1250x780")
+root.geometry("1300x800")
 
 selected_emp_id = None
 
@@ -88,7 +88,7 @@ def select_emp(event):
         selected_emp_id = emp[0]
         load_letters()
 
-# ================= LETTER ADD =================
+# ================= ADD LETTER =================
 def add_letter_ui():
     if not selected_emp_id:
         messagebox.showwarning("تنبيه", "اختر موظف أولاً")
@@ -135,25 +135,22 @@ def load_letters():
         else:
             unused_tree.insert("", "end", values=l)
 
-# ================= PROMOTION ALERT =================
-def check_promotions():
-    conn = sqlite3.connect("system.db")
-    cur = conn.cursor()
-    cur.execute("SELECT name, last_date FROM employees")
-    rows = cur.fetchall()
-    conn.close()
+# ================= AUTO PROMOTION =================
+def check_auto_promotions():
+    results = run_promotions()
 
-    due = []
-
-    for r in rows:
-        if is_due(r[1]):
-            due.append(r[0])
-
-    if due:
-        messagebox.showinfo("تنبيه علاوات", "المستحقون:\n" + "\n".join(due))
+    if results:
+        msg = ""
+        for r in results:
+            msg += f"{r[0]} => {r[1]}\n"
+        messagebox.showinfo("الترقيات التلقائية", msg)
 
 # ================= EMP TABLE =================
-emp_tree = ttk.Treeview(root, columns=("id","name","position","type","grade","stage","date"), show="headings")
+emp_tree = ttk.Treeview(
+    root,
+    columns=("id","name","position","type","grade","stage","date"),
+    show="headings"
+)
 
 for c in emp_tree["columns"]:
     emp_tree.heading(c, text=c)
@@ -184,25 +181,42 @@ tk.Label(letter_frame, text="التاريخ").grid(row=0, column=4)
 letter_date = DateEntry(letter_frame, date_pattern="yyyy-mm-dd")
 letter_date.grid(row=0, column=5)
 
-tk.Button(letter_frame, text="إضافة كتاب", command=add_letter_ui, bg="green", fg="white").grid(row=0, column=6)
+tk.Button(letter_frame, text="إضافة كتاب", command=add_letter_ui,
+          bg="green", fg="white").grid(row=0, column=6)
 
 # ================= TABLES =================
 tables_frame = tk.Frame(root)
 tables_frame.pack(fill="both", expand=True)
 
 tk.Label(tables_frame, text="الكتب المحتسبة").grid(row=0, column=0)
-used_tree = ttk.Treeview(tables_frame, columns=("id","emp","num","auth","date"), show="headings", height=10)
+
+used_tree = ttk.Treeview(
+    tables_frame,
+    columns=("id","emp","num","auth","date"),
+    show="headings",
+    height=10
+)
+
 for c in used_tree["columns"]:
     used_tree.heading(c, text=c)
+
 used_tree.grid(row=1, column=0)
 
 tk.Label(tables_frame, text="الكتب غير المحتسبة").grid(row=0, column=1)
-unused_tree = ttk.Treeview(tables_frame, columns=("id","emp","num","auth","date"), show="headings", height=10)
+
+unused_tree = ttk.Treeview(
+    tables_frame,
+    columns=("id","emp","num","auth","date"),
+    show="headings",
+    height=10
+)
+
 for c in unused_tree["columns"]:
     unused_tree.heading(c, text=c)
+
 unused_tree.grid(row=1, column=1)
 
-# ================= AUTO ALERT =================
-root.after(2000, check_promotions)
+# ================= RUN AUTO =================
+root.after(3000, check_auto_promotions)
 
 root.mainloop()
