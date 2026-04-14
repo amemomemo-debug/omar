@@ -5,9 +5,9 @@ import sqlite3
 import shutil
 import pandas as pd
 
-# ========================
+# =========================
 # DATABASE
-# ========================
+# =========================
 
 conn = sqlite3.connect("hr_system.db")
 cursor = conn.cursor()
@@ -27,239 +27,231 @@ president_books INTEGER
 
 conn.commit()
 
-# ========================
-# LOGIN SYSTEM
-# ========================
+# =========================
+# LOGIN
+# =========================
 
 USERNAME = "admin"
 PASSWORD = "1234"
 
 def check_login():
-
     if user_entry.get() == USERNAME and pass_entry.get() == PASSWORD:
         login.destroy()
         open_main()
     else:
-        messagebox.showerror("خطأ", "اسم المستخدم او كلمة المرور غير صحيحة")
+        messagebox.showerror("خطأ", "بيانات الدخول غير صحيحة")
 
-# ========================
-# SERVICE CALCULATION
-# ========================
+# =========================
+# CALCULATION
+# =========================
 
-def calculate_service(date, minister, university, pm, president):
+def calculate_service(minister, university, pm, president):
 
-    counted = min(minister + university,3)
-    counted += min(pm + president,2) * 3
+    counted = min(minister + university, 3)
+    counted += min(pm + president, 2) * 3
 
-    not_counted = (minister + university + pm + president) - counted
+    total = minister + university + pm + president
+    not_counted = total - counted
 
     return counted, not_counted
 
-
-# ========================
+# =========================
 # ADD EMPLOYEE
-# ========================
+# =========================
 
 def add_employee():
-
-    name = name_entry.get()
-    title = title_combo.get()
-    hire = date_entry.get()
-
-    minister = int(minister_entry.get() or 0)
-    university = int(university_entry.get() or 0)
-    pm = int(pm_entry.get() or 0)
-    president = int(president_entry.get() or 0)
 
     cursor.execute("""
     INSERT INTO employees
     (name,title,hire_date,minister_books,university_books,pm_books,president_books)
-    VALUES(?,?,?,?,?,?,?)
-    """,(name,title,hire,minister,university,pm,president))
+    VALUES (?,?,?,?,?,?,?)
+    """,(
+        name_entry.get(),
+        title_combo.get(),
+        date_entry.get(),
+        int(minister_entry.get() or 0),
+        int(university_entry.get() or 0),
+        int(pm_entry.get() or 0),
+        int(president_entry.get() or 0)
+    ))
 
     conn.commit()
-
     load_data()
 
-# ========================
-# LOAD TABLE
-# ========================
+# =========================
+# LOAD DATA
+# =========================
 
 def load_data():
 
-    for row in table.get_children():
-        table.delete(row)
+    for i in table.get_children():
+        table.delete(i)
 
     cursor.execute("SELECT * FROM employees")
+    rows = cursor.fetchall()
 
-    for r in cursor.fetchall():
+    for r in rows:
 
         counted, not_counted = calculate_service(
-        r[3],r[4],r[5],r[6],r[7]
+            r[4], r[5], r[6], r[7]
         )
 
-        table.insert("",tk.END,values=(
-        r[1],
-        r[2],
-        r[3],
-        counted,
-        not_counted
+        table.insert("", "end", values=(
+            r[1], r[2], r[3], counted, not_counted
         ))
 
-# ========================
+# =========================
 # DELETE
-# ========================
+# =========================
 
 def delete_employee():
 
     selected = table.focus()
-
     if not selected:
         return
 
-    values = table.item(selected,"values")
+    data = table.item(selected)["values"]
 
-    cursor.execute("DELETE FROM employees WHERE name=?",(values[0],))
+    cursor.execute("DELETE FROM employees WHERE name=?", (data[0],))
     conn.commit()
 
     load_data()
 
-# ========================
+# =========================
 # BACKUP
-# ========================
+# =========================
 
-def backup():
+def backup_db():
 
-    path = filedialog.asksaveasfilename(defaultextension=".db")
+    file = filedialog.asksaveasfilename(defaultextension=".db")
 
-    if path:
-        shutil.copy("hr_system.db",path)
-        messagebox.showinfo("تم","تم اخذ نسخة احتياطية")
+    if file:
+        shutil.copy("hr_system.db", file)
+        messagebox.showinfo("تم", "تم إنشاء نسخة احتياطية")
 
-
-# ========================
+# =========================
 # EXPORT EXCEL
-# ========================
+# =========================
 
 def export_excel():
 
     cursor.execute("SELECT * FROM employees")
+    rows = cursor.fetchall()
 
-    data = cursor.fetchall()
+    data = []
 
-    rows = []
+    for r in rows:
 
-    for r in data:
-
-        counted,not_counted = calculate_service(
-        r[3],r[4],r[5],r[6],r[7]
+        counted, not_counted = calculate_service(
+            r[4], r[5], r[6], r[7]
         )
 
-        rows.append({
-        "الاسم":r[1],
-        "الصفة":r[2],
-        "تاريخ التعيين":r[3],
-        "القدم المحتسبة":counted,
-        "غير المحتسبة":not_counted
-        })
+        data.append([
+            r[1],
+            r[2],
+            r[3],
+            counted,
+            not_counted
+        ])
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(data, columns=[
+        "الاسم",
+        "الصفة",
+        "تاريخ التعيين",
+        "القدم المحتسبة",
+        "القدم غير المحتسبة"
+    ])
 
-    path = filedialog.asksaveasfilename(defaultextension=".xlsx")
+    file = filedialog.asksaveasfilename(defaultextension=".xlsx")
 
-    if path:
-        df.to_excel(path,index=False)
-        messagebox.showinfo("تم","تم تصدير الملف")
+    if file:
+        df.to_excel(file, index=False)
+        messagebox.showinfo("تم", "تم التصدير")
 
-
-# ========================
-# MAIN WINDOW
-# ========================
+# =========================
+# MAIN APP
+# =========================
 
 def open_main():
 
     global table
-    global name_entry
-    global title_combo
-    global date_entry
-    global minister_entry
-    global university_entry
-    global pm_entry
-    global president_entry
+    global name_entry, title_combo, date_entry
+    global minister_entry, university_entry, pm_entry, president_entry
 
     root = tk.Tk()
     root.title("نظام الموارد البشرية")
+    root.geometry("1000x600")
 
     frame = tk.Frame(root)
-    frame.pack(pady=10)
+    frame.pack()
 
-    tk.Label(frame,text="الاسم").grid(row=0,column=0)
+    tk.Label(frame, text="الاسم").grid(row=0, column=0)
     name_entry = tk.Entry(frame)
-    name_entry.grid(row=0,column=1)
+    name_entry.grid(row=0, column=1)
 
-    tk.Label(frame,text="الصفة").grid(row=0,column=2)
-    title_combo = ttk.Combobox(frame,values=["موظف","تدريسي","درجة خاصة"])
-    title_combo.grid(row=0,column=3)
+    tk.Label(frame, text="الصفة").grid(row=0, column=2)
+    title_combo = ttk.Combobox(frame, values=["موظف", "تدريسي", "درجة خاصة"])
+    title_combo.grid(row=0, column=3)
 
-    tk.Label(frame,text="تاريخ التعيين").grid(row=1,column=0)
+    tk.Label(frame, text="تاريخ التعيين").grid(row=1, column=0)
     date_entry = DateEntry(frame)
-    date_entry.grid(row=1,column=1)
+    date_entry.grid(row=1, column=1)
 
-    tk.Label(frame,text="كتب الوزير").grid(row=2,column=0)
-    minister_entry = tk.Entry(frame,width=5)
-    minister_entry.grid(row=2,column=1)
+    tk.Label(frame, text="كتب الوزير").grid(row=2, column=0)
+    minister_entry = tk.Entry(frame)
+    minister_entry.grid(row=2, column=1)
 
-    tk.Label(frame,text="كتب رئيس الجامعة").grid(row=2,column=2)
-    university_entry = tk.Entry(frame,width=5)
-    university_entry.grid(row=2,column=3)
+    tk.Label(frame, text="كتب الجامعة").grid(row=2, column=2)
+    university_entry = tk.Entry(frame)
+    university_entry.grid(row=2, column=3)
 
-    tk.Label(frame,text="كتب رئيس الوزراء").grid(row=3,column=0)
-    pm_entry = tk.Entry(frame,width=5)
-    pm_entry.grid(row=3,column=1)
+    tk.Label(frame, text="كتب رئيس الوزراء").grid(row=3, column=0)
+    pm_entry = tk.Entry(frame)
+    pm_entry.grid(row=3, column=1)
 
-    tk.Label(frame,text="كتب رئيس الجمهورية").grid(row=3,column=2)
-    president_entry = tk.Entry(frame,width=5)
-    president_entry.grid(row=3,column=3)
+    tk.Label(frame, text="كتب الرئيس").grid(row=3, column=2)
+    president_entry = tk.Entry(frame)
+    president_entry.grid(row=3, column=3)
 
-    tk.Button(frame,text="اضافة موظف",command=add_employee).grid(row=4,column=1,pady=10)
+    tk.Button(frame, text="إضافة موظف", command=add_employee).grid(row=4, column=0)
+    tk.Button(frame, text="حذف", command=delete_employee).grid(row=4, column=1)
+    tk.Button(frame, text="Backup", command=backup_db).grid(row=4, column=2)
+    tk.Button(frame, text="Excel", command=export_excel).grid(row=4, column=3)
 
-    tk.Button(frame,text="حذف",command=delete_employee).grid(row=4,column=2)
+    columns = (
+        "الاسم",
+        "الصفة",
+        "التعيين",
+        "القدم المحتسبة",
+        "القدم غير المحتسبة"
+    )
 
-    tk.Button(frame,text="Backup",command=backup).grid(row=4,column=3)
-
-    tk.Button(frame,text="تصدير Excel",command=export_excel).grid(row=4,column=4)
-
-    columns=("الاسم","الصفة","تاريخ التعيين","القدم المحتسبة","غير المحتسبة")
-
-    table = ttk.Treeview(root,columns=columns,show="headings")
+    table = ttk.Treeview(root, columns=columns, show="headings")
 
     for c in columns:
-        table.heading(c,text=c)
+        table.heading(c, text=c)
 
-    table.pack(fill="both",expand=True)
+    table.pack(fill="both", expand=True)
 
     load_data()
 
     root.mainloop()
 
-
-# ========================
+# =========================
 # LOGIN WINDOW
-# ========================
+# =========================
 
 login = tk.Tk()
 login.title("تسجيل الدخول")
 
-tk.Label(login,text="Username").pack()
-
+tk.Label(login, text="Username").pack()
 user_entry = tk.Entry(login)
 user_entry.pack()
 
-tk.Label(login,text="Password").pack()
-
-pass_entry = tk.Entry(login,show="*")
+tk.Label(login, text="Password").pack()
+pass_entry = tk.Entry(login, show="*")
 pass_entry.pack()
 
-tk.Button(login,text="Login",command=check_login).pack(pady=10)
+tk.Button(login, text="دخول", command=check_login).pack()
 
 login.mainloop()
