@@ -3,6 +3,7 @@ import sqlite3
 def connect():
     return sqlite3.connect("system.db")
 
+
 def init_db():
     conn = connect()
     cur = conn.cursor()
@@ -12,7 +13,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
         position TEXT,
-        allowance_type TEXT,
+        job_type TEXT,
         grade TEXT,
         stage INTEGER,
         last_date TEXT
