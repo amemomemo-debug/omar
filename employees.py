@@ -1,16 +1,16 @@
 import sqlite3
+from datetime import datetime, timedelta
 
 def db():
     return sqlite3.connect("system.db")
 
-# إضافة موظف
+
 def add_employee(data):
     conn = db()
     cur = conn.cursor()
 
     cur.execute("""
-    INSERT INTO employees
-    (name, position, allowance_type, grade, stage, last_date)
+    INSERT INTO employees (name, position, job_type, grade, stage, last_date)
     VALUES (?, ?, ?, ?, ?, ?)
     """, data)
 
@@ -18,7 +18,6 @@ def add_employee(data):
     conn.close()
 
 
-# جلب الموظفين
 def get_employees():
     conn = db()
     cur = conn.cursor()
@@ -30,12 +29,12 @@ def get_employees():
     return rows
 
 
-# حذف موظف
-def delete_employee(emp_id):
-    conn = db()
-    cur = conn.cursor()
+# 🟢 حساب الاستحقاق
+def calc_due(last_date):
+    last = datetime.strptime(last_date, "%Y-%m-%d")
+    due = last + timedelta(days=365)
+    return due.date()
 
-    cur.execute("DELETE FROM employees WHERE id=?", (emp_id,))
 
-    conn.commit()
-    conn.close()
+def is_due(last_date):
+    return datetime.today().date() >= calc_due(last_date)
