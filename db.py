@@ -14,9 +14,10 @@ def init_db():
         name TEXT,
         position TEXT,
         job_type TEXT,
-        grade TEXT,
+        grade INTEGER,
         stage INTEGER,
-        last_date TEXT
+        last_date TEXT,
+        join_date TEXT DEFAULT (date('now'))
     )
     """)
 
