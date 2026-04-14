@@ -5,17 +5,20 @@ import sqlite3
 
 from db import init_db
 from employees import add_employee, get_employees
+from letters import add_letter, get_letters
 
 init_db()
 
 root = tk.Tk()
 root.title("نظام شؤون الموظفين")
-root.geometry("1000x650")
+root.geometry("1100x700")
 
-# ================= عنوان =================
+selected_emp_id = None
+
+# ================= TITLE =================
 tk.Label(root, text="نظام شؤون الموظفين", font=("Arial", 18, "bold")).pack(pady=10)
 
-# ================= إدخال بيانات =================
+# ================= EMPLOYEE FRAME =================
 frame = tk.Frame(root)
 frame.pack()
 
@@ -43,8 +46,8 @@ tk.Label(frame, text="آخر علاوة").grid(row=2, column=0)
 last_date = DateEntry(frame, date_pattern="yyyy-mm-dd")
 last_date.grid(row=2, column=1)
 
-# ================= وظائف =================
 
+# ================= FUNCTIONS =================
 def save_emp():
     if name.get() == "":
         messagebox.showerror("خطأ", "اسم الموظف فارغ")
@@ -63,6 +66,7 @@ def save_emp():
     load()
     messagebox.showinfo("تم", "تم إضافة الموظف")
 
+
 def load():
     for i in tree.get_children():
         tree.delete(i)
@@ -70,61 +74,75 @@ def load():
     for row in get_employees():
         tree.insert("", "end", values=row)
 
-def delete_emp():
+
+def select_emp(event):
+    global selected_emp_id
     selected = tree.selection()
-    if not selected:
-        messagebox.showwarning("تنبيه", "اختر موظف للحذف")
+    if selected:
+        emp = tree.item(selected[0])["values"]
+        selected_emp_id = emp[0]
+
+
+def add_letter_ui():
+    if not selected_emp_id:
+        messagebox.showwarning("تنبيه", "اختر موظف أولاً")
         return
 
-    emp = tree.item(selected[0])["values"]
-    emp_id = emp[0]
+    result = add_letter((
+        selected_emp_id,
+        letter_number.get(),
+        authority.get(),
+        letter_date.get()
+    ))
 
-    conn = sqlite3.connect("system.db")
-    cur = conn.cursor()
-    cur.execute("DELETE FROM employees WHERE id=?", (emp_id,))
-    conn.commit()
-    conn.close()
+    if result == "duplicate":
+        messagebox.showerror("خطأ", "رقم الكتاب مكرر")
+        return
 
-    load()
-    messagebox.showinfo("تم", "تم حذف الموظف")
+    letters = get_letters(selected_emp_id)
 
-def search_emp():
-    keyword = search_entry.get()
+    if len(letters) > 3:
+        messagebox.showinfo("تنبيه", "تم الحفظ لكن الكتاب غير محسوب (تجاوز 3 كتب)")
+    else:
+        messagebox.showinfo("تم", "تم إضافة كتاب شكر")
 
-    for i in tree.get_children():
-        tree.delete(i)
 
-    conn = sqlite3.connect("system.db")
-    cur = conn.cursor()
+# ================= BUTTONS =================
+tk.Button(root, text="حفظ موظف", command=save_emp, bg="green", fg="white").pack(pady=5)
 
-    cur.execute("SELECT * FROM employees WHERE name LIKE ?", ('%' + keyword + '%',))
-    rows = cur.fetchall()
-
-    conn.close()
-
-    for r in rows:
-        tree.insert("", "end", values=r)
-
-# ================= أزرار التحكم =================
-control = tk.Frame(root)
-control.pack(pady=10)
-
-search_entry = tk.Entry(control)
-search_entry.pack(side="left")
-
-tk.Button(control, text="بحث", command=search_emp).pack(side="left", padx=5)
-tk.Button(control, text="عرض الكل", command=load).pack(side="left", padx=5)
-tk.Button(control, text="حذف موظف", command=delete_emp).pack(side="left", padx=5)
-tk.Button(control, text="حفظ موظف", command=save_emp, bg="green", fg="white").pack(side="left", padx=5)
-
-# ================= جدول =================
+# ================= TABLE =================
 tree = ttk.Treeview(root, columns=("id","name","position","type","grade","stage","date"), show="headings")
 
 for col in tree["columns"]:
     tree.heading(col, text=col)
 
 tree.pack(fill="both", expand=True)
+tree.bind("<ButtonRelease-1>", select_emp)
 
 load()
+
+
+# ================= LETTERS =================
+letter_frame = tk.Frame(root)
+letter_frame.pack(pady=10)
+
+tk.Label(letter_frame, text="رقم الكتاب").grid(row=0, column=0)
+letter_number = tk.Entry(letter_frame)
+letter_number.grid(row=0, column=1)
+
+tk.Label(letter_frame, text="الجهة").grid(row=0, column=2)
+authority = ttk.Combobox(letter_frame, values=[
+    "رئيس الجمهورية",
+    "رئيس الوزراء",
+    "الوزير",
+    "رئيس الجامعة"
+])
+authority.grid(row=0, column=3)
+
+tk.Label(letter_frame, text="التاريخ").grid(row=1, column=0)
+letter_date = DateEntry(letter_frame, date_pattern="yyyy-mm-dd")
+letter_date.grid(row=1, column=1)
+
+tk.Button(letter_frame, text="إضافة كتاب شكر", command=add_letter_ui).grid(row=2, column=1)
 
 root.mainloop()
