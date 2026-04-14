@@ -3,12 +3,13 @@ import sqlite3
 def db():
     return sqlite3.connect("system.db")
 
-# إضافة كتاب شكر مع منع التكرار
+
+# إضافة كتاب شكر
 def add_letter(data):
     conn = db()
     cur = conn.cursor()
 
-    # منع تكرار الرقم
+    # منع تكرار رقم الكتاب
     cur.execute("SELECT * FROM letters WHERE number=?", (data[1],))
     if cur.fetchone():
         conn.close()
