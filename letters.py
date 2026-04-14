@@ -3,10 +3,16 @@ import sqlite3
 def db():
     return sqlite3.connect("system.db")
 
-# إضافة كتاب شكر
+# إضافة كتاب شكر مع منع التكرار
 def add_letter(data):
     conn = db()
     cur = conn.cursor()
+
+    # منع تكرار الرقم
+    cur.execute("SELECT * FROM letters WHERE number=?", (data[1],))
+    if cur.fetchone():
+        conn.close()
+        return "duplicate"
 
     cur.execute("""
     INSERT INTO letters (emp_id, number, authority, letter_date)
@@ -15,17 +21,16 @@ def add_letter(data):
 
     conn.commit()
     conn.close()
+    return "ok"
 
 
-# جلب كتب موظف معين
+# جلب كتب موظف
 def get_letters(emp_id):
     conn = db()
     cur = conn.cursor()
 
-    cur.execute("""
-    SELECT * FROM letters WHERE emp_id=?
-    """, (emp_id,))
-
+    cur.execute("SELECT * FROM letters WHERE emp_id=?", (emp_id,))
     rows = cur.fetchall()
+
     conn.close()
     return rows
