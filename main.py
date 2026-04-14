@@ -1,205 +1,265 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from tkcalendar import DateEntry
-from db import *
-from employees import *
-from letters import *
+import sqlite3
+import shutil
+import pandas as pd
 
-root = tk.Tk()
-root.title("نظام إدارة العلاوات والترفيعات")
-root.geometry("1100x650")
+# ========================
+# DATABASE
+# ========================
 
-FONT = ("Tahoma", 11)
+conn = sqlite3.connect("hr_system.db")
+cursor = conn.cursor()
 
-# -------------------------
-# إدخال بيانات الموظف
-# -------------------------
-
-frame = tk.LabelFrame(root, text="معلومات الموظف", font=("Tahoma", 12))
-frame.pack(fill="x", padx=10, pady=10)
-
-tk.Label(frame, text="الاسم", font=FONT).grid(row=0, column=0)
-name_entry = tk.Entry(frame, font=FONT)
-name_entry.grid(row=0, column=1)
-
-tk.Label(frame, text="المنصب", font=FONT).grid(row=0, column=2)
-
-position_combo = ttk.Combobox(frame,font=FONT)
-position_combo['values'] = [
-"رئيس الجامعة",
-"مساعد رئيس الجامعة للشؤون الادارية",
-"مساعد رئيس الجامعة للشؤون العلمية",
-"عميد كلية"
-]
-position_combo.grid(row=0,column=3)
-
-tk.Label(frame,text="التشكيل",font=FONT).grid(row=1,column=0)
-dept_entry = tk.Entry(frame,font=FONT)
-dept_entry.grid(row=1,column=1)
-
-tk.Label(frame,text="الدرجة الوظيفية",font=FONT).grid(row=1,column=2)
-grade_entry = tk.Entry(frame,font=FONT)
-grade_entry.grid(row=1,column=3)
-
-tk.Label(frame,text="المرحلة",font=FONT).grid(row=2,column=0)
-stage_entry = tk.Entry(frame,font=FONT)
-stage_entry.grid(row=2,column=1)
-
-tk.Label(frame,text="نوع العلاوة",font=FONT).grid(row=2,column=2)
-
-allowance_combo = ttk.Combobox(frame,font=FONT)
-allowance_combo['values'] = [
-"علاوة تدريسي",
-"علاوة خاصة"
-]
-allowance_combo.grid(row=2,column=3)
-
-tk.Label(frame,text="تاريخ آخر علاوة",font=FONT).grid(row=3,column=0)
-date_entry = DateEntry(frame,font=FONT,date_pattern="yyyy-mm-dd")
-date_entry.grid(row=3,column=1)
-
-# -------------------------
-# جدول الموظفين
-# -------------------------
-
-table_frame = tk.Frame(root)
-table_frame.pack(fill="both",expand=True)
-
-columns = (
-"الاسم",
-"المنصب",
-"التشكيل",
-"الدرجة",
-"المرحلة",
-"نوع العلاوة",
-"آخر علاوة",
-"العلاوة القادمة",
-"الترفيع"
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS employees(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+name TEXT,
+title TEXT,
+hire_date TEXT,
+minister_books INTEGER,
+university_books INTEGER,
+pm_books INTEGER,
+president_books INTEGER
 )
+""")
 
-tree = ttk.Treeview(table_frame,columns=columns,show="headings")
+conn.commit()
 
-for col in columns:
-    tree.heading(col,text=col)
-    tree.column(col,width=120)
+# ========================
+# LOGIN SYSTEM
+# ========================
 
-tree.pack(fill="both",expand=True)
+USERNAME = "admin"
+PASSWORD = "1234"
 
-# -------------------------
-# جدول كتب الشكر المحتسبة
-# -------------------------
+def check_login():
 
-counted_frame = tk.LabelFrame(root,text="كتب الشكر المحتسبة",font=("Tahoma",12))
-counted_frame.pack(fill="x",padx=10,pady=5)
+    if user_entry.get() == USERNAME and pass_entry.get() == PASSWORD:
+        login.destroy()
+        open_main()
+    else:
+        messagebox.showerror("خطأ", "اسم المستخدم او كلمة المرور غير صحيحة")
 
-columns_letters_counted = (
-"رقم الكتاب",
-"تاريخ الكتاب",
-"جهة الإصدار",
-"القدم المحتسب"
-)
+# ========================
+# SERVICE CALCULATION
+# ========================
 
-letters_counted = ttk.Treeview(counted_frame,columns=columns_letters_counted,show="headings")
+def calculate_service(date, minister, university, pm, president):
 
-for col in columns_letters_counted:
-    letters_counted.heading(col,text=col)
-    letters_counted.column(col,width=150)
+    counted = min(minister + university,3)
+    counted += min(pm + president,2) * 3
 
-letters_counted.pack(fill="x")
+    not_counted = (minister + university + pm + president) - counted
 
-# -------------------------
-# جدول كتب الشكر غير المحتسبة
-# -------------------------
+    return counted, not_counted
 
-not_counted_frame = tk.LabelFrame(root,text="كتب الشكر غير المحتسبة",font=("Tahoma",12))
-not_counted_frame.pack(fill="x",padx=10,pady=5)
 
-columns_letters_not = (
-"رقم الكتاب",
-"تاريخ الكتاب",
-"جهة الإصدار",
-"سبب عدم الاحتساب"
-)
-
-letters_not = ttk.Treeview(not_counted_frame,columns=columns_letters_not,show="headings")
-
-for col in columns_letters_not:
-    letters_not.heading(col,text=col)
-    letters_not.column(col,width=150)
-
-letters_not.pack(fill="x")
-
-# -------------------------
-# إضافة موظف
-# -------------------------
+# ========================
+# ADD EMPLOYEE
+# ========================
 
 def add_employee():
 
     name = name_entry.get()
-    position = position_combo.get()
-    dept = dept_entry.get()
-    grade = grade_entry.get()
-    stage = stage_entry.get()
-    allowance = allowance_combo.get()
-    date = date_entry.get()
+    title = title_combo.get()
+    hire = date_entry.get()
 
-    if name == "":
-        messagebox.showerror("خطأ","الرجاء إدخال اسم الموظف")
+    minister = int(minister_entry.get() or 0)
+    university = int(university_entry.get() or 0)
+    pm = int(pm_entry.get() or 0)
+    president = int(president_entry.get() or 0)
+
+    cursor.execute("""
+    INSERT INTO employees
+    (name,title,hire_date,minister_books,university_books,pm_books,president_books)
+    VALUES(?,?,?,?,?,?,?)
+    """,(name,title,hire,minister,university,pm,president))
+
+    conn.commit()
+
+    load_data()
+
+# ========================
+# LOAD TABLE
+# ========================
+
+def load_data():
+
+    for row in table.get_children():
+        table.delete(row)
+
+    cursor.execute("SELECT * FROM employees")
+
+    for r in cursor.fetchall():
+
+        counted, not_counted = calculate_service(
+        r[3],r[4],r[5],r[6],r[7]
+        )
+
+        table.insert("",tk.END,values=(
+        r[1],
+        r[2],
+        r[3],
+        counted,
+        not_counted
+        ))
+
+# ========================
+# DELETE
+# ========================
+
+def delete_employee():
+
+    selected = table.focus()
+
+    if not selected:
         return
 
-    save_employee(name,position,dept,grade,stage,allowance,date)
+    values = table.item(selected,"values")
 
-    messagebox.showinfo("تم","تم حفظ الموظف")
+    cursor.execute("DELETE FROM employees WHERE name=?",(values[0],))
+    conn.commit()
 
-# -------------------------
-# أزرار التحكم
-# -------------------------
+    load_data()
 
-buttons_frame = tk.Frame(root)
-buttons_frame.pack(pady=10)
+# ========================
+# BACKUP
+# ========================
 
-tk.Button(
-buttons_frame,
-text="إضافة موظف",
-font=("Tahoma",11),
-command=add_employee
-).grid(row=0,column=0,padx=5)
+def backup():
 
-tk.Button(
-buttons_frame,
-text="حذف موظف",
-font=("Tahoma",11)
-).grid(row=0,column=1,padx=5)
+    path = filedialog.asksaveasfilename(defaultextension=".db")
 
-tk.Button(
-buttons_frame,
-text="تعديل بيانات",
-font=("Tahoma",11)
-).grid(row=0,column=2,padx=5)
+    if path:
+        shutil.copy("hr_system.db",path)
+        messagebox.showinfo("تم","تم اخذ نسخة احتياطية")
 
-tk.Button(
-buttons_frame,
-text="بحث عن موظف",
-font=("Tahoma",11)
-).grid(row=0,column=3,padx=5)
 
-tk.Button(
-buttons_frame,
-text="تصدير إلى Excel",
-font=("Tahoma",11)
-).grid(row=0,column=4,padx=5)
+# ========================
+# EXPORT EXCEL
+# ========================
 
-# -------------------------
-# الحقوق
-# -------------------------
+def export_excel():
 
-footer = tk.Label(
-root,
-text="Developed by: Omar_Basim_AL_RAWE",
-font=("Arial",8),
-fg="gray"
-)
+    cursor.execute("SELECT * FROM employees")
 
-footer.pack(side="bottom")
+    data = cursor.fetchall()
 
-root.mainloop()
+    rows = []
+
+    for r in data:
+
+        counted,not_counted = calculate_service(
+        r[3],r[4],r[5],r[6],r[7]
+        )
+
+        rows.append({
+        "الاسم":r[1],
+        "الصفة":r[2],
+        "تاريخ التعيين":r[3],
+        "القدم المحتسبة":counted,
+        "غير المحتسبة":not_counted
+        })
+
+    df = pd.DataFrame(rows)
+
+    path = filedialog.asksaveasfilename(defaultextension=".xlsx")
+
+    if path:
+        df.to_excel(path,index=False)
+        messagebox.showinfo("تم","تم تصدير الملف")
+
+
+# ========================
+# MAIN WINDOW
+# ========================
+
+def open_main():
+
+    global table
+    global name_entry
+    global title_combo
+    global date_entry
+    global minister_entry
+    global university_entry
+    global pm_entry
+    global president_entry
+
+    root = tk.Tk()
+    root.title("نظام الموارد البشرية")
+
+    frame = tk.Frame(root)
+    frame.pack(pady=10)
+
+    tk.Label(frame,text="الاسم").grid(row=0,column=0)
+    name_entry = tk.Entry(frame)
+    name_entry.grid(row=0,column=1)
+
+    tk.Label(frame,text="الصفة").grid(row=0,column=2)
+    title_combo = ttk.Combobox(frame,values=["موظف","تدريسي","درجة خاصة"])
+    title_combo.grid(row=0,column=3)
+
+    tk.Label(frame,text="تاريخ التعيين").grid(row=1,column=0)
+    date_entry = DateEntry(frame)
+    date_entry.grid(row=1,column=1)
+
+    tk.Label(frame,text="كتب الوزير").grid(row=2,column=0)
+    minister_entry = tk.Entry(frame,width=5)
+    minister_entry.grid(row=2,column=1)
+
+    tk.Label(frame,text="كتب رئيس الجامعة").grid(row=2,column=2)
+    university_entry = tk.Entry(frame,width=5)
+    university_entry.grid(row=2,column=3)
+
+    tk.Label(frame,text="كتب رئيس الوزراء").grid(row=3,column=0)
+    pm_entry = tk.Entry(frame,width=5)
+    pm_entry.grid(row=3,column=1)
+
+    tk.Label(frame,text="كتب رئيس الجمهورية").grid(row=3,column=2)
+    president_entry = tk.Entry(frame,width=5)
+    president_entry.grid(row=3,column=3)
+
+    tk.Button(frame,text="اضافة موظف",command=add_employee).grid(row=4,column=1,pady=10)
+
+    tk.Button(frame,text="حذف",command=delete_employee).grid(row=4,column=2)
+
+    tk.Button(frame,text="Backup",command=backup).grid(row=4,column=3)
+
+    tk.Button(frame,text="تصدير Excel",command=export_excel).grid(row=4,column=4)
+
+    columns=("الاسم","الصفة","تاريخ التعيين","القدم المحتسبة","غير المحتسبة")
+
+    table = ttk.Treeview(root,columns=columns,show="headings")
+
+    for c in columns:
+        table.heading(c,text=c)
+
+    table.pack(fill="both",expand=True)
+
+    load_data()
+
+    root.mainloop()
+
+
+# ========================
+# LOGIN WINDOW
+# ========================
+
+login = tk.Tk()
+login.title("تسجيل الدخول")
+
+tk.Label(login,text="Username").pack()
+
+user_entry = tk.Entry(login)
+user_entry.pack()
+
+tk.Label(login,text="Password").pack()
+
+pass_entry = tk.Entry(login,show="*")
+pass_entry.pack()
+
+tk.Button(login,text="Login",command=check_login).pack(pady=10)
+
+login.mainloop()
